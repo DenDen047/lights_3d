@@ -44,9 +44,13 @@ class Differential {
 
     int r, theta;
 
+    int r_now, r_ago;
+
     Differential () {
         loop_count = 1;
         stack_size = 10;
+        r_now = 0;
+        r_ago = 0;
         point = new Position[stack_size];
         for (int i=0; i<stack_size; i++) {
             point[i] = new Position();
@@ -70,6 +74,9 @@ class Differential {
 
         r = point[now].r;
         theta = point[now].theta;
+
+        r_now = point[now].r;
+        r_ago = point[ago].r;
     }
 }
 
@@ -152,6 +159,8 @@ class PhysicalBall {
     float posX, posY, posZ;
     float speedX, speedY, speedZ;
     float rotX, rotY, rotZ;
+    boolean changeRadius;
+    float initSX, initSY, initSZ;
 
     PhysicalBall (float x, float y, float z, float sx, float sy, float sz, float r, float g, float b) {
         ball = new Light(r, g, b);
@@ -162,23 +171,42 @@ class PhysicalBall {
         speedX = sx;
         speedY = sy;
         speedZ = sz;
+        initSX = sx;
+        initSY = sy;
+        initSZ = sz;
 
         rotX = 0.0;
         rotY = 0.0;
         rotZ = 0.0;
+
+        changeRadius = false;
     }
 
     void updateSpeed() {
-        float distance = sqrt(sq(posX) + sq(posY) + sq(posZ));
-        speedX += -gravity * posX / distance;
-        speedY += -gravity * posY / distance;
-        speedZ += -gravity * posZ / distance;
+        if (changeRadius) {
+            speedX = random(-10, 10);
+            speedY = random(-10, 10);
+            speedZ = random(-10, 10);
+        } else {
+            float distance = sqrt(sq(posX) + sq(posY) + sq(posZ));
+            speedX += -gravity * posX / distance;
+            speedY += -gravity * posY / distance;
+            speedZ += -gravity * posZ / distance;
+        }
     }
 
     void updatePosition() {
         posX += speedX;
         posY += speedY;
         posZ += speedZ;
+    }
+
+    void updateRadius(float r) {
+        float distance = sqrt(sq(posX) + sq(posY) + sq(posZ));
+        posX += r * posX / distance;
+        posY += r * posY / distance;
+        posZ += r * posZ / distance;
+        changeRadius = true;
     }
 
     void updateRotate(float x, float y, float z) {
@@ -207,6 +235,8 @@ class PhysicalBall {
         ball.draw();
 
         popMatrix();
+
+        changeRadius = false;
     }
 }
 
@@ -230,7 +260,7 @@ void setup(){
     // others
     angle = 0;
     size = 150;
-    ball_num = 100;
+    ball_num = 50;
 
     theworld = false;
 
@@ -290,23 +320,11 @@ void draw(){
         0.0, 1.0, 0.0   // upX, upY, upZ
     );
 
-    stroke(255, 0, 0);
-    line(0,0,0, 100,0,0);
-    stroke(0, 255, 0);
-    line(0,0,0, 0,100,0);
-    stroke(0, 0, 255);
-    line(0,0,0, 0,0,100);
-
     for (int i=0; i<ball_num; i++) {
+        if (theworld) ball[i].updateRadius(dif.dr);
         ball[i].updateRotate(0, 360.0 * i / ball_num + angle, 0);
         ball[i].draw(theworld);
     }
 
-
-    println("dif.r: "+dif.r + "   " + theworld);
-    if (theworld) {
-        theworld = (dif.r > 70.0);
-    } else {
-        theworld = (dif.r > 200.0);
-    }
+    theworld = ((x1>0 && y1>0) && (x3>0 && y3>0) && dif.r_ago>0) ? true : false;
 }
