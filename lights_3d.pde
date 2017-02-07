@@ -8,8 +8,10 @@ Serial myPort;
 int angle, size;
 int _;
 Differential dif;
-int light_num;
-Light[] lights;
+int ball_num;
+PhysicalBall[] ball;
+
+boolean theworld;
 
 
 
@@ -27,7 +29,7 @@ class Position {
     void update_cartesian (int a, int b) {
         x = a;
         y = b;
-        r = int(sqrt(x*x + y*y));
+        r = int(sqrt(sq(x) + sq(y)));
         theta = int(degrees(atan2(x, y)));
     }
 }
@@ -39,6 +41,8 @@ class Differential {
     int loop_count;
 
     int dr, dtheta;
+
+    int r, theta;
 
     Differential () {
         loop_count = 1;
@@ -63,6 +67,9 @@ class Differential {
 
         dr = point[now].r - point[ago].r;
         dtheta = point[now].theta - point[ago].theta;
+
+        r = point[now].r;
+        theta = point[now].theta;
     }
 }
 
@@ -127,6 +134,13 @@ class Light {
         popMatrix();
     }
 
+    void move() {
+        translate(posX, posY, posZ);
+    }
+    void draw() {
+        image(img, 0, 0);
+    }
+
     void changeColor(float r, float g, float b) {
         img = createLight(r, g, b);
     }
@@ -134,26 +148,31 @@ class Light {
 
 class PhysicalBall {
     Light ball;
-    float gravity;
+    float mass, gravity;
     float posX, posY, posZ;
     float speedX, speedY, speedZ;
+    float rotX, rotY, rotZ;
 
-    PhysicalBall (float r, float g, float b) {
+    PhysicalBall (float x, float y, float z, float sx, float sy, float sz, float r, float g, float b) {
         ball = new Light(r, g, b);
         gravity = 0.98;
-        posX = 0.0;
-        posY = 0.0;
-        posZ = 0.0;
-        speedX = 0.0;
-        speedY = 0.0;
-        speedZ = 0.0;
+        posX = x;
+        posY = y;
+        posZ = z;
+        speedX = sx;
+        speedY = sy;
+        speedZ = sz;
+
+        rotX = 0.0;
+        rotY = 0.0;
+        rotZ = 0.0;
     }
 
     void updateSpeed() {
-        float distance = sq(posX*posX + posY*posY + posZ*posZ);
-        speedX += - gravity * posX / distance;
-        speedY += - gravity * posY / distance;
-        speedZ += - gravity * posZ / distance;
+        float distance = sqrt(sq(posX) + sq(posY) + sq(posZ));
+        speedX += -gravity * posX / distance;
+        speedY += -gravity * posY / distance;
+        speedZ += -gravity * posZ / distance;
     }
 
     void updatePosition() {
@@ -161,32 +180,33 @@ class PhysicalBall {
         posY += speedY;
         posZ += speedZ;
     }
-}
 
-class Camera {
-    float eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ;
-    Camera () {
-        eyeX = 0.0;
-        eyeY = 0.0;
-        eyeZ = 0.0;
-        centerX = 0.0;
-        centerY = 0.0;
-        centerZ = 0.0;
-        upX = 0.0;
-        upY = 0.0;
-        upZ = 0.0;
+    void updateRotate(float x, float y, float z) {
+        rotX = x;
+        rotY = y;
+        rotZ = z;
     }
 
-    void update(float r, float angle) {
-        eyeX = r * cos(radians(angle));
-        eyeY = 0.0;
-        eyeZ = r * sin(radians(angle));
-        centerX=0.0; centerY=0.0; centerZ=0.0;
-        upX=0.0; upY=1.0; upZ=0.0;
-    }
+    void draw(boolean stop) {
+        if (!stop) {
+            updateSpeed();
+            updatePosition();
+        }
 
-    void draw() {
-        camera(eyeX, eyeY, eyeZ, centerX, centerY, centerZ, upX, upY, upZ);
+        pushMatrix();
+
+        rotateX(radians(rotX));
+        rotateY(radians(rotY));
+        rotateZ(radians(rotZ));
+        ball.position_set(posX, posY, posZ);
+        ball.move();
+        rotateX(radians(-rotX));
+        rotateY(radians(-rotY));
+        rotateZ(radians(-rotZ));
+
+        ball.draw();
+
+        popMatrix();
     }
 }
 
@@ -210,14 +230,18 @@ void setup(){
     // others
     angle = 0;
     size = 150;
-    light_num = 10;
+    ball_num = 100;
+
+    theworld = false;
 
     dif = new Differential();
-    lights = new Light[light_num];
+    ball = new PhysicalBall[ball_num];
 
-    for (int i=0; i<light_num; i++) {
-        lights[i] = new Light(random(0.5, 0.8), random(0.5, 0.8), random(0.5, 0.8));
-        lights[i].position_set(random(0.0, 100.0), random(0.0, 100.0), random(0.0, 100.0));
+    for (int i=0; i<ball_num; i++) {
+        ball[i] = new PhysicalBall(
+            random(-200, 200), random(-200, 200), random(-200, 200),
+            random(-10, 10), random(-10, 10), random(-10, 10),
+            random(0.5, 0.8), random(0.5, 0.8), random(0.5, 0.8));
     }
 }
 
@@ -273,7 +297,16 @@ void draw(){
     stroke(0, 0, 255);
     line(0,0,0, 0,0,100);
 
-    for (int i=0; i<light_num; i++) {
-        lights[i].draw_polar_y(size, 360.0 * i / light_num + angle);
+    for (int i=0; i<ball_num; i++) {
+        ball[i].updateRotate(0, 360.0 * i / ball_num + angle, 0);
+        ball[i].draw(theworld);
+    }
+
+
+    println("dif.r: "+dif.r + "   " + theworld);
+    if (theworld) {
+        theworld = (dif.r > 70.0);
+    } else {
+        theworld = (dif.r > 200.0);
     }
 }
